@@ -1,0 +1,37 @@
+file,layout,cert_no,unit_id,building,city,state,unit_type,capacity_lbs,inspection_date,next_due,inspector,result,invoice_total,defect_count
+MES-2026-4100.pdf,A,MES-2026-4100,D97-6,Kestrel Plaza,Denver,CO,Freight,4000,01/13/2026,01/13/2027,A. Vasquez,FAIL,1766.82,3
+MES-2026-4101.pdf,B,MES-2026-4101,B75-5,Kestrel Plaza,Denver,CO,Traction Passenger,3500,04/22/2026,04/22/2027,M. Lindqvist,PASS,963.28,0
+MES-2026-4102.pdf,C,MES-2026-4102,E11-2,Harborview Tower,Portland,OR,Freight,,04/02/2026,04/02/2027,D. Whitfield,FAIL,1001.53,3
+MES-2026-4103.pdf,A,MES-2026-4103,E85-4,Northgate Exchange,Reno,NV,Traction Passenger,2100,07/02/2026,07/02/2027,K. Nakamura,PASS WITH DEFECTS,878.05,3
+MES-2026-4104.pdf,B,MES-2026-4104,A35-4,Copperfield Center,Bend,OR,Traction Passenger,3500,07/19/2026,07/19/2027,D. Whitfield,PASS,1237.33,0
+MES-2026-4105.pdf,C,MES-2026-4105,E37-4,Larkspur Union,Missoula,MT,Traction Passenger,3000,07/22/2026,07/22/2027,S. Ferrara,PASS,395.86,0
+MES-2026-4106.pdf,A,MES-2026-4106,A74-4,Harborview Tower,Portland,OR,Traction Passenger,3500,04/10/2026,04/10/2027,K. Nakamura,FAIL,515.46,1
+MES-2026-4107.pdf,B,MES-2026-4107,D26-5,Larkspur Union,Missoula,MT,Escalator,3000,07/25/2026,07/25/2027,J. Bhatt,PASS,726.87,0
+MES-2026-4108.pdf,C,MES-2026-4108,A49-3,Copperfield Center,Bend,OR,Freight,3500,01/11/2026,01/11/2027,R. Okonkwo,FAIL,1620.19,3
+MES-2026-4109.pdf,A,MES-2026-4109,B30-4,Larkspur Union,Missoula,MT,Traction Passenger,2100,03/22/2026,03/22/2027,T. Moreau,PASS WITH DEFECTS,536.79,2
+MES-2026-4110.pdf,B,MES-2026-4110,C88-2,Harborview Tower,Portland,OR,Freight,6000,03/14/2026,03/14/2027,R. Okonkwo,PASS,1583.08,0
+MES-2026-4111.pdf,C,MES-2026-4111,E19-2,Copperfield Center,Bend,OR,Freight,,02/13/2026,02/13/2027,R. Okonkwo,FAIL,1647.92,1
+MES-2026-4112.pdf,A,MES-2026-4112,C83-3,Ironwood Residences,Spokane,WA,Traction Passenger,3500,03/22/2026,03/22/2027,S. Ferrara,PASS,1439.22,0
+MES-2026-4113.pdf,B,MES-2026-4113,B95-6,Alder Commons,Boise,ID,Freight,2100,06/09/2026,06/09/2027,T. Moreau,FAIL,285.82,2
+MES-2026-4114.pdf,C,MES-2026-4114,B91-2,Harborview Tower,Portland,OR,Freight,3500,05/10/2026,05/10/2027,J. Bhatt,PASS,398.08,0
+MES-2026-4115.pdf,A,MES-2026-4115,A72-3,Sable Point Medical,Tacoma,WA,Hydraulic Passenger,4000,06/17/2026,06/17/2027,R. Okonkwo,PASS,1735.54,0
+MES-2026-4116.pdf,B,MES-2026-4116,B80-4,Harborview Tower,Portland,OR,Traction Passenger,3000,02/04/2026,02/04/2027,A. Vasquez,FAIL,1626.78,2
+MES-2026-4117.pdf,C,MES-2026-4117,E14-3,Sable Point Medical,Tacoma,WA,Traction Passenger,3000,05/01/2026,05/01/2027,A. Vasquez,PASS,906.87,0
+MES-2026-4118.pdf,A,MES-2026-4118,C33-4,Copperfield Center,Bend,OR,Traction Passenger,4000,02/16/2026,02/16/2027,R. Okonkwo,PASS,728.57,0
+MES-2026-4119.pdf,B,MES-2026-4119,C10-3,Kestrel Plaza,Denver,CO,Traction Passenger,2100,07/20/2026,07/20/2027,A. Vasquez,PASS WITH DEFECTS,1389.77,2
+MES-2026-4120.pdf,C,MES-2026-4120,D77-4,Ironwood Residences,Spokane,WA,Hydraulic Passenger,,02/15/2026,02/15/2027,D. Whitfield,PASS WITH DEFECTS,864.36,2
+MES-2026-4121.pdf,A,MES-2026-4121,E23-5,Copperfield Center,Bend,OR,Hydraulic Passenger,6000,03/29/2026,03/29/2027,D. Whitfield,PASS,591.65,0
+MES-2026-4122.pdf,B,MES-2026-4122,A49-5,Larkspur Union,Missoula,MT,Hydraulic Passenger,4000,04/04/2026,04/04/2027,S. Ferrara,PASS,1396.20,0
+MES-2026-4123.pdf,C,MES-2026-4123,C74-5,Harborview Tower,Portland,OR,Traction Passenger,2500,05/19/2026,05/19/2027,S. Ferrara,PASS,1097.65,0
+MES-2026-4124.pdf,A,MES-2026-4124,C94-4,Kestrel Plaza,Denver,CO,Traction Passenger,6000,05/13/2026,05/13/2027,R. Okonkwo,FAIL,317.14,1
+MES-2026-4125.pdf,B,MES-2026-4125,E24-2,Ironwood Residences,Spokane,WA,Traction Passenger,6000,01/15/2026,01/15/2027,R. Okonkwo,PASS,1787.94,0
+MES-2026-4126.pdf,C,MES-2026-4126,B63-5,Copperfield Center,Bend,OR,Hydraulic Passenger,6000,02/24/2026,02/24/2027,A. Vasquez,PASS,1782.40,0
+MES-2026-4127.pdf,A,MES-2026-4127,D41-3,Larkspur Union,Missoula,MT,Freight,3500,03/29/2026,03/29/2027,K. Nakamura,PASS,1502.69,0
+MES-2026-4128.pdf,B,MES-2026-4128,B47-5,Copperfield Center,Bend,OR,Traction Passenger,2500,01/10/2026,01/10/2027,R. Okonkwo,FAIL,1845.90,2
+MES-2026-4129.pdf,C,MES-2026-4129,E40-1,Ironwood Residences,Spokane,WA,Freight,,02/10/2026,02/10/2027,J. Bhatt,PASS,1322.85,0
+MES-2026-4130.pdf,A,MES-2026-4130,B81-3,Ironwood Residences,Spokane,WA,Hydraulic Passenger,2100,02/28/2026,02/28/2027,R. Okonkwo,PASS,326.12,0
+MES-2026-4131.pdf,B,MES-2026-4131,C52-4,Alder Commons,Boise,ID,Freight,3500,06/23/2026,06/23/2027,S. Ferrara,PASS,882.45,0
+MES-2026-4132.pdf,C,MES-2026-4132,C14-2,Sable Point Medical,Tacoma,WA,Traction Passenger,2500,02/27/2026,02/27/2027,T. Moreau,PASS,416.19,0
+MES-2026-4133.pdf,A,MES-2026-4133,B28-2,Kestrel Plaza,Denver,CO,Freight,4000,04/03/2026,04/03/2027,A. Vasquez,PASS,1187.68,0
+MES-2026-4134.pdf,B,MES-2026-4134,D44-3,Larkspur Union,Missoula,MT,Traction Passenger,3500,02/23/2026,02/23/2027,J. Bhatt,PASS,1506.08,0
+MES-2026-4135.pdf,C,MES-2026-4135,D79-6,Alder Commons,Boise,ID,Hydraulic Passenger,3000,04/28/2026,04/28/2027,S. Ferrara,PASS,1088.68,0
