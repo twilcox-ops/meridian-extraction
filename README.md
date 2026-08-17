@@ -1,4 +1,4 @@
-# Project 2 — Document Extraction (Stage 1–4, plus the Layout C parser Stage 5 needs)
+# Project 2 — Document Extraction (Stage 1–5, complete)
 
 A scaffold for the project described in
 [`PROJECT-2-document-extraction.md`](../meridian-portfolio/PROJECT-2-document-extraction.md)
@@ -113,7 +113,39 @@ parser doing most of the work already. So:
   and Stage 5's LLM call is exactly the kind of thing that can quietly
   break that property if it isn't already pinned down by a test.
 
-The LLM fallback itself is Stage 5, not built yet.
+**Stage 5 — LLM fallback, measured.**
+- Scope, exactly as the project brief states it: **Layout C only**, and
+  **only for fields the deterministic parser left `None`.** In practice
+  that's one field — `capacity_lbs` — on the 4 of 12 Layout C documents
+  where the source PDF genuinely omits it. Every other Layout C field is
+  already at 100% (Stage 4's prerequisite work), so there's nothing else
+  for the model to do.
+- `llm_fallback.py`: calls Claude Opus 5 (`claude-opus-5`) with structured
+  output (`output_config.format`, a `json_schema` built per-call from just
+  the missing fields) — typed JSON back, not prose to re-parse. The system
+  prompt is explicit: return `null` for a field that isn't actually in the
+  document; never guess. `resolve_missing_fields()` only ever asks about
+  fields that are `None` — the "Layout C only, gap-filling only" constraint
+  is enforced in code, not left to caller discipline.
+- **Determinism, without `temperature=0`.** Claude Opus 5 rejects
+  `temperature` outright (removed on this model tier — sending it 400s).
+  Every real response is cached instead, keyed by a hash of (model, prompt
+  version, requested fields, document text) in `var/llm_cache.jsonl`. A
+  rerun against the same document never calls the API again — a stronger
+  guarantee than `temperature=0` ever was, and free after the first run.
+  Verified live: rerunning `report-llm-fallback` after the first run costs
+  **$0.00** and reproduces the identical result.
+- `llm_fallback_report.py` (`report-llm-fallback`) runs the fallback over
+  all 12 Layout C documents and reports accuracy with/without the
+  fallback, cost per document, and latency per document — the exact
+  acceptance criterion.
+
+The LLM fallback module accepts a swappable `caller` function, so
+`tests/test_llm_fallback.py` (8 tests) verifies all the merge/cache/coercion
+logic against a fake caller with zero network calls and zero cost.
+`tests/test_llm_fallback_live.py` (2 tests) hits the real API — but reuses
+the same cache key the real report run already populated, so after the
+first run it also costs nothing on every subsequent test run.
 
 ## Results
 
@@ -172,6 +204,36 @@ Review queue, all 36 documents (measured by `tests/test_review_queue.py`):
   Before the Layout C parser existed, this held only by accident (nothing
   in Layout C was extracted at all); now it holds for the right reason.
 
+LLM fallback, all 12 Layout C documents (measured live against the real
+Claude API — not simulated — via `report-llm-fallback`):
+
+```
+Layout C documents: 12
+Documents needing the LLM fallback (a field was missing): 4
+  of which made a fresh API call: 4
+
+Field accuracy WITHOUT fallback (deterministic parser only): 100.0%
+Field accuracy WITH fallback:                                100.0%
+
+Total cost this run: $0.01706
+Cost per document needing the fallback: $0.00426
+Cost per document across all of Layout C: $0.00142
+Average latency per fresh API call: 3.10s
+```
+
+**The finding — as the project doc says to expect, whatever it turns out
+to be:** the LLM fallback made no accuracy difference here. Not because it
+didn't run — it made 4 real API calls, at ~$0.004 and ~3 seconds each —
+but because the deterministic parser had already reached 100% on every
+obtainable field, and the 4 missing-capacity documents are missing
+`capacity_lbs` because the *source PDF* omits it, not because the parser
+failed. Asked directly, the model correctly returned `null` for all 4
+rather than inventing a plausible weight. That's the actual result: the
+LLM path is proven safe (it never fabricated a value) and proven
+unnecessary on this corpus (nothing was left to extract) — both facts
+measured, not assumed. Rerunning the same command afterward costs **$0.00**
+— every one of those 4 answers is now cached.
+
 ## Setup
 
 ```powershell
@@ -180,6 +242,15 @@ python -m venv .venv
 
 # to also run the Streamlit review UI:
 .venv\Scripts\pip install -e ".[ui]"
+
+# to also run the Stage 5 LLM fallback (needs ANTHROPIC_API_KEY in .env):
+.venv\Scripts\pip install -e ".[llm]"
+```
+
+`.env` (git-ignored) must contain:
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 ## Run
@@ -200,13 +271,18 @@ python -m venv .venv
 # the review UI itself (requires the "ui" extra)
 .venv\Scripts\streamlit run app\review_app.py
 
+# Stage 5: LLM fallback report over all 12 Layout C documents (requires "llm" extra + .env)
+.venv\Scripts\report-llm-fallback
+
 # any report command can point at a different corpus with the same GROUND_TRUTH.csv shape
 .venv\Scripts\python -m extraction.cli path\to\other\sample-data
 .venv\Scripts\python -m extraction.routing_report path\to\other\sample-data
 .venv\Scripts\python -m extraction.validation_report path\to\other\sample-data
 .venv\Scripts\python -m extraction.review_queue path\to\other\sample-data
+.venv\Scripts\python -m extraction.llm_fallback_report path\to\other\sample-data
 
-# tests (Streamlit UI tests are skipped automatically if the "ui" extra isn't installed)
+# tests (Streamlit UI / LLM live tests are skipped automatically if their extras
+# or ANTHROPIC_API_KEY aren't available)
 .venv\Scripts\pytest -q
 ```
 
@@ -229,6 +305,8 @@ src/extraction/
   confidence.py        # field_confidences(result) -> per-field 0.0/1.0
   audit_log.py          # append-only JSONL log of review decisions
   review_queue.py        # combines routing + confidence + validation -> QueueItem list; entry point: build-review-queue
+  llm_fallback.py          # Stage 5: Claude Opus 5 structured-output fallback + JSONL response cache
+  llm_fallback_report.py    # entry point: report-llm-fallback
 app/
   review_app.py          # Streamlit review UI: streamlit run app/review_app.py
 tests/
@@ -246,13 +324,15 @@ tests/
   test_audit_log.py         # unit tests: append/read, approve vs correct, per-file filtering
   test_review_queue.py      # unit tests + end-to-end: 20 clean / 16 review on the real corpus
   test_review_app.py        # Streamlit AppTest: loads, lists queue, submits, writes audit log
+  test_llm_fallback.py      # unit tests against a fake caller: merge/cache/coercion, zero network cost
+  test_llm_fallback_live.py # 2 tests against the real Claude API; skipped without ANTHROPIC_API_KEY
 sample-data/inspection-certs/   # 36 PDFs + GROUND_TRUTH.csv (copied in so
                                  # this repo is self-contained; source of
                                  # truth is meridian-portfolio/sample-data)
-var/                             # gitignored: audit_log.jsonl lives here once the UI is used
+var/                             # gitignored: audit_log.jsonl and llm_cache.jsonl live here
 ```
 
-## Design notes for Stage 5
+## Design notes
 
 - `ExtractionResult` (`models.py`) field names match `GROUND_TRUTH.csv`
   columns 1:1 so scoring stays a plain per-field `==`, regardless of which
@@ -269,17 +349,24 @@ var/                             # gitignored: audit_log.jsonl lives here once t
   reporting all pick it up automatically.
 - `ValidationOutcome.valid`, `routed.misrouted`, and per-field confidence
   are the three inputs `review_queue.evaluate_document` combines into one
-  `needs_review` decision. **Stage 5 should only need to change what
-  `field_confidences` returns** (fractional instead of binary, for
-  whichever fields the LLM fills in) — not how the review queue, schema
-  validation, or reporting consume it.
+  `needs_review` decision. Stage 5 deliberately left this alone: the LLM
+  fallback lives in its own module (`llm_fallback.py`) and reporting script
+  rather than feeding back into `confidence.py` or the review queue. That
+  keeps the "accuracy with vs. without the fallback" comparison clean — the
+  review queue's numbers describe the deterministic pipeline only, and
+  `report-llm-fallback` is the one place the LLM's effect is measured. If a
+  future stage wants the fallback's answers to actually reach the clean
+  output, the natural seam is exactly that Stage 4 already built: run
+  `resolve_missing_fields` before `evaluate_document`, and let confidence
+  scoring treat an LLM-filled field the same as a parser-filled one.
 - `record_review` logs every field the reviewer saw, not just the ones
   they changed — a blank field left blank still gets an `approve` entry
   (`old_value=None, new_value=None`), which is what makes "this document
   was reviewed and nothing was fabricated" independently verifiable from
   the log later.
-- The wrap-point bug in `layout_c.py` is the concrete argument for why
-  Stage 5's LLM fallback should only run on fields the deterministic
-  parser actually left `None` — not on every Layout C field — since the
-  deterministic parser, once fixed, is both cheaper and now proven at
-  100% on the real corpus.
+- The wrap-point bug in `layout_c.py` was the concrete argument for why
+  Stage 5's LLM fallback only runs on fields the deterministic parser
+  actually left `None`, not on every Layout C field — the deterministic
+  parser, once fixed, is both cheaper and proven at 100% on the real
+  corpus. What that argument predicted is exactly what the measurement
+  showed: the fallback made 4 real calls and changed 0 field values.

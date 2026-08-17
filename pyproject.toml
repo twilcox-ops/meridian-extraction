@@ -11,12 +11,14 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
 ui = ["streamlit>=1.30"]
+llm = ["anthropic>=0.40", "python-dotenv>=1.0"]
 
 [project.scripts]
 report-accuracy = "extraction.cli:main"
 route-documents = "extraction.routing_report:main"
 validate-documents = "extraction.validation_report:main"
 build-review-queue = "extraction.review_queue:main"
+report-llm-fallback = "extraction.llm_fallback_report:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

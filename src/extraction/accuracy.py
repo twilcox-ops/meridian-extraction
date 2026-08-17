@@ -22,7 +22,7 @@ from extraction.pdf_io import extract_text
 from extraction.router import route
 
 
-def _normalize_ground_truth_row(row: dict[str, str]) -> dict[str, object]:
+def normalize_ground_truth_row(row: dict[str, str]) -> dict[str, object]:
     """Convert a GROUND_TRUTH.csv row into the same types ExtractionResult
     uses, so comparison is a plain `==` per field."""
 
@@ -131,7 +131,7 @@ def score_extraction(sample_data_dir: Path) -> AccuracyReport:
             continue
 
         extracted = routed.result.as_dict()
-        expected = _normalize_ground_truth_row(row)
+        expected = normalize_ground_truth_row(row)
         layout_accuracy = report.layouts.setdefault(layout, LayoutAccuracy())
         wrong_fields = layout_accuracy.record(extracted, expected)
         for name in wrong_fields:
