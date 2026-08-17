@@ -16,15 +16,12 @@ consumes it.
 
 from __future__ import annotations
 
-from extraction.layout_a import LayoutAResult
-from extraction.schema import InspectionCertificate
+from extraction.models import FIELD_NAMES, ExtractionResult
 
 DEFAULT_CONFIDENCE_THRESHOLD = 1.0
 
-FIELD_NAMES: tuple[str, ...] = tuple(InspectionCertificate.model_fields)
 
-
-def field_confidences(result: LayoutAResult | None) -> dict[str, float]:
+def field_confidences(result: ExtractionResult | None) -> dict[str, float]:
     """One confidence score per schema field.
 
     `result=None` means there's no parser for this document's layout yet

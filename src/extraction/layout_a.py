@@ -16,8 +16,9 @@ match, rather than inventing a plausible value.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, fields
 from datetime import date
+
+from extraction.models import ExtractionResult
 
 # One marker that this text plausibly is Layout A. Real routing across all
 # three layouts is Stage 2's job; this is just a guard so this parser
@@ -40,34 +41,6 @@ _FIELD_PATTERNS: dict[str, re.Pattern[str]] = {
 
 # A defect line under "Defects Noted:" — indented, starts with "- ".
 _DEFECT_LINE = re.compile(r"^\s*-\s+.+$", re.MULTILINE)
-
-
-@dataclass(frozen=True)
-class LayoutAResult:
-    """One document's extracted fields. Any field the regex didn't match is
-    `None` — that is a signal for later stages, not an error to hide.
-
-    Field names match `GROUND_TRUTH.csv` columns (minus `file`/`layout`,
-    which the caller already knows) so accuracy scoring is a straight
-    dict/row comparison.
-    """
-
-    cert_no: str | None
-    unit_id: str | None
-    building: str | None
-    city: str | None
-    state: str | None
-    unit_type: str | None
-    capacity_lbs: int | None
-    inspection_date: date | None
-    next_due: date | None
-    inspector: str | None
-    result: str | None
-    invoice_total: float | None
-    defect_count: int | None
-
-    def as_dict(self) -> dict[str, object]:
-        return {f.name: getattr(self, f.name) for f in fields(self)}
 
 
 def _parse_date(value: str) -> date | None:
@@ -111,11 +84,11 @@ def is_layout_a(text: str) -> bool:
     return LAYOUT_A_MARKER.search(text) is not None
 
 
-def parse_layout_a(text: str) -> LayoutAResult:
+def parse_layout_a(text: str) -> ExtractionResult:
     """Parse Layout A document text into structured fields.
 
     Deterministic and side-effect free: the same `text` in always produces
-    the same `LayoutAResult` out, which is what makes reprocessing a PDF
+    the same `ExtractionResult` out, which is what makes reprocessing a PDF
     twice produce identical output.
     """
     raw: dict[str, str | None] = {}
@@ -132,7 +105,7 @@ def parse_layout_a(text: str) -> LayoutAResult:
     inspection_date = _parse_date(raw["inspection_date"]) if raw["inspection_date"] else None
     next_due = _parse_date(raw["next_due"]) if raw["next_due"] else None
 
-    return LayoutAResult(
+    return ExtractionResult(
         cert_no=raw["cert_no"],
         unit_id=raw["unit_id"],
         building=raw["building"],

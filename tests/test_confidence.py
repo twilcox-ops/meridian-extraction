@@ -2,9 +2,9 @@ import dataclasses
 from datetime import date
 
 from extraction.confidence import FIELD_NAMES, field_confidences, low_confidence_fields
-from extraction.layout_a import LayoutAResult
+from extraction.models import ExtractionResult
 
-FULL_RESULT = LayoutAResult(
+FULL_RESULT = ExtractionResult(
     cert_no="MES-2026-4100",
     unit_id="D97-6",
     building="Kestrel Plaza",

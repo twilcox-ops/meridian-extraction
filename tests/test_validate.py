@@ -1,9 +1,9 @@
 from datetime import date
 
-from extraction.layout_a import LayoutAResult
+from extraction.models import ExtractionResult
 from extraction.validate import validate_extraction
 
-VALID_RESULT = LayoutAResult(
+VALID_RESULT = ExtractionResult(
     cert_no="MES-2026-4100",
     unit_id="D97-6",
     building="Kestrel Plaza",

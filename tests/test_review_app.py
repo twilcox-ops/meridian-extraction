@@ -28,8 +28,9 @@ def test_app_loads_without_exceptions(audit_log_path):
 def test_review_queue_documents_are_listed(audit_log_path):
     at = st_testing.AppTest.from_file(APP_PATH, default_timeout=60)
     at.run()
-    # 24 of the 36 sample documents need review (Layout B/C: no parser yet)
-    assert len(at.sidebar.radio[0].options) == 24
+    # 16 of the 36 sample documents need review: 12 Layout B (no parser) +
+    # 4 Layout C (capacity_lbs missing)
+    assert len(at.sidebar.radio[0].options) == 16
 
 
 def test_submitting_a_review_writes_the_audit_log(audit_log_path):

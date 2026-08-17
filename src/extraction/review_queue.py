@@ -24,9 +24,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from extraction.confidence import DEFAULT_CONFIDENCE_THRESHOLD, field_confidences, low_confidence_fields
+from extraction.models import FIELD_NAMES
 from extraction.pdf_io import extract_text
 from extraction.router import route
-from extraction.schema import InspectionCertificate
 from extraction.validate import ValidationOutcome, validate_extraction
 
 DEFAULT_SAMPLE_DATA = Path(__file__).resolve().parents[2] / "sample-data" / "inspection-certs"
@@ -55,7 +55,7 @@ def evaluate_document(pdf_path: Path, threshold: float = DEFAULT_CONFIDENCE_THRE
     if routed.result is not None:
         values = routed.result.as_dict()
     else:
-        values = {name: None for name in InspectionCertificate.model_fields}
+        values = {name: None for name in FIELD_NAMES}
 
     reasons: list[str] = []
     if routed.misrouted:

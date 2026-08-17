@@ -1,26 +1,29 @@
-"""Score Layout A extraction against GROUND_TRUTH.csv.
+"""Score deterministic extraction against GROUND_TRUTH.csv, broken out by
+layout and by field.
 
-Stage 1 only scores Layout A documents — Stage 2 hasn't been built yet to
-route Layout B/C documents anywhere, and running this parser on them would
-just produce a wall of `None`s that are misleading, not informative. Those
-rows are counted and reported as skipped, not silently dropped.
+Only layouts with a working parser (Stage 2's `router.py`) get scored — a
+row is routed for real, not just looked up by its ground-truth layout
+column, so a routing regression would show up here as documents dropping
+out of scoring, not as silently wrong numbers. Layout B has no parser by
+design (see README): its documents are counted and reported as skipped,
+never run through the wrong parser and never silently treated as 0%
+accurate. "Skipped" and "wrong" are different findings, and this report
+keeps them distinct.
 """
 
 from __future__ import annotations
 
 import csv
-from dataclasses import fields
 from datetime import date
 from pathlib import Path
 
-from extraction.layout_a import LayoutAResult, parse_layout_a
+from extraction.models import FIELD_NAMES
 from extraction.pdf_io import extract_text
-
-_FIELD_NAMES = [f.name for f in fields(LayoutAResult)]
+from extraction.router import route
 
 
 def _normalize_ground_truth_row(row: dict[str, str]) -> dict[str, object]:
-    """Convert a GROUND_TRUTH.csv row into the same types LayoutAResult
+    """Convert a GROUND_TRUTH.csv row into the same types ExtractionResult
     uses, so comparison is a plain `==` per field."""
 
     def parse_date(value: str) -> date | None:
@@ -46,73 +49,36 @@ def _normalize_ground_truth_row(row: dict[str, str]) -> dict[str, object]:
     }
 
 
-def score_layout_a(sample_data_dir: Path) -> "AccuracyReport":
-    """Run the Layout A parser over every Layout-A row in GROUND_TRUTH.csv
-    and score each field against the ground-truth value."""
-    ground_truth_path = sample_data_dir / "GROUND_TRUTH.csv"
-    with ground_truth_path.open(newline="", encoding="utf-8") as f:
-        rows = list(csv.DictReader(f))
-
-    layout_a_rows = [r for r in rows if r["layout"] == "A"]
-    other_layout_count = len(rows) - len(layout_a_rows)
-
-    field_correct = {name: 0 for name in _FIELD_NAMES}
-    field_total = {name: 0 for name in _FIELD_NAMES}
-    mismatches: list[FieldMismatch] = []
-
-    for row in layout_a_rows:
-        pdf_path = sample_data_dir / row["file"]
-        text = extract_text(pdf_path)
-        extracted = parse_layout_a(text).as_dict()
-        expected = _normalize_ground_truth_row(row)
-
-        for name in _FIELD_NAMES:
-            field_total[name] += 1
-            if extracted[name] == expected[name]:
-                field_correct[name] += 1
-            else:
-                mismatches.append(
-                    FieldMismatch(
-                        file=row["file"],
-                        field=name,
-                        expected=expected[name],
-                        actual=extracted[name],
-                    )
-                )
-
-    return AccuracyReport(
-        documents_scored=len(layout_a_rows),
-        documents_skipped=other_layout_count,
-        field_correct=field_correct,
-        field_total=field_total,
-        mismatches=mismatches,
-    )
-
-
 class FieldMismatch:
-    __slots__ = ("file", "field", "expected", "actual")
+    __slots__ = ("file", "layout", "field", "expected", "actual")
 
-    def __init__(self, file: str, field: str, expected: object, actual: object) -> None:
+    def __init__(self, file: str, layout: str, field: str, expected: object, actual: object) -> None:
         self.file = file
+        self.layout = layout
         self.field = field
         self.expected = expected
         self.actual = actual
 
 
-class AccuracyReport:
-    def __init__(
-        self,
-        documents_scored: int,
-        documents_skipped: int,
-        field_correct: dict[str, int],
-        field_total: dict[str, int],
-        mismatches: list[FieldMismatch],
-    ) -> None:
-        self.documents_scored = documents_scored
-        self.documents_skipped = documents_skipped
-        self.field_correct = field_correct
-        self.field_total = field_total
-        self.mismatches = mismatches
+class LayoutAccuracy:
+    """Per-field correct/total counts for one layout."""
+
+    def __init__(self) -> None:
+        self.field_correct: dict[str, int] = {name: 0 for name in FIELD_NAMES}
+        self.field_total: dict[str, int] = {name: 0 for name in FIELD_NAMES}
+        self.documents_scored = 0
+
+    def record(self, extracted: dict[str, object], expected: dict[str, object]) -> list[str]:
+        """Score one document's fields; returns the names of any that were wrong."""
+        wrong_fields = []
+        for name in FIELD_NAMES:
+            self.field_total[name] += 1
+            if extracted[name] == expected[name]:
+                self.field_correct[name] += 1
+            else:
+                wrong_fields.append(name)
+        self.documents_scored += 1
+        return wrong_fields
 
     def overall_accuracy(self) -> float:
         total = sum(self.field_total.values())
@@ -122,3 +88,61 @@ class AccuracyReport:
     def field_accuracy(self, field: str) -> float:
         total = self.field_total[field]
         return self.field_correct[field] / total if total else 0.0
+
+
+class AccuracyReport:
+    def __init__(self) -> None:
+        self.layouts: dict[str, LayoutAccuracy] = {}
+        self.skipped_by_layout: dict[str, int] = {}
+        self.mismatches: list[FieldMismatch] = []
+
+    def documents_scored(self) -> int:
+        return sum(la.documents_scored for la in self.layouts.values())
+
+    def documents_skipped(self) -> int:
+        return sum(self.skipped_by_layout.values())
+
+    def overall_accuracy(self) -> float:
+        total = sum(sum(la.field_total.values()) for la in self.layouts.values())
+        correct = sum(sum(la.field_correct.values()) for la in self.layouts.values())
+        return correct / total if total else 0.0
+
+
+def score_extraction(sample_data_dir: Path) -> AccuracyReport:
+    """Route and score every document in GROUND_TRUTH.csv, layout by
+    layout. A document only contributes to `layouts[...]` if `route()`
+    actually produced an extraction for it; otherwise it's counted in
+    `skipped_by_layout`, keyed by its ground-truth layout for reporting.
+    """
+    ground_truth_path = sample_data_dir / "GROUND_TRUTH.csv"
+    with ground_truth_path.open(newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+
+    report = AccuracyReport()
+
+    for row in rows:
+        pdf_path = sample_data_dir / row["file"]
+        text = extract_text(pdf_path)
+        routed = route(text)
+        layout = row["layout"]
+
+        if routed.result is None:
+            report.skipped_by_layout[layout] = report.skipped_by_layout.get(layout, 0) + 1
+            continue
+
+        extracted = routed.result.as_dict()
+        expected = _normalize_ground_truth_row(row)
+        layout_accuracy = report.layouts.setdefault(layout, LayoutAccuracy())
+        wrong_fields = layout_accuracy.record(extracted, expected)
+        for name in wrong_fields:
+            report.mismatches.append(
+                FieldMismatch(
+                    file=row["file"],
+                    layout=layout,
+                    field=name,
+                    expected=expected[name],
+                    actual=extracted[name],
+                )
+            )
+
+    return report

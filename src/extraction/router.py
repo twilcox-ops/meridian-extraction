@@ -1,28 +1,33 @@
 """Stage 2 — routes a document to the parser for its detected layout.
 
-Only Layout A has a parser so far (Stage 1). Layout B and C are classified
-correctly here but have no parser yet — routing one of them produces an
-explicit "no parser implemented" result, never a silent empty or garbage
-extraction that looks like success.
+Layout A and Layout C have parsers. Layout B does not — that's a
+deliberate scope boundary, not an oversight: none of the project's stages
+ever assign Layout B a parser, so it's classified correctly here and
+always routed to the review queue instead. Any layout without a parser
+produces an explicit "no parser implemented" result, never a silent empty
+or garbage extraction that looks like success.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from extraction.layout_a import LayoutAResult, parse_layout_a
+from extraction.layout_a import parse_layout_a
+from extraction.layout_c import parse_layout_c
 from extraction.layout_detect import Layout, LayoutClassification, classify_layout
+from extraction.models import ExtractionResult
 
-# Registry of layout -> parser. Stage 2 only ever wires up layouts that
-# already have a working parser; adding Layout B/C parsers later is a
-# one-line addition here, not a change to how routing works.
-_PARSERS = {"A": parse_layout_a}
+# Registry of layout -> parser. Only layouts with a working parser appear
+# here; Layout B is deliberately absent (see module docstring). Adding a
+# parser for it later would be a one-line addition here, not a change to
+# how routing works.
+_PARSERS = {"A": parse_layout_a, "C": parse_layout_c}
 
 
 @dataclass(frozen=True)
 class RoutedDocument:
     classification: LayoutClassification
-    result: LayoutAResult | None
+    result: ExtractionResult | None
     note: str
 
     @property

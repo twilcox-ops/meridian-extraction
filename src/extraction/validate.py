@@ -9,7 +9,7 @@ from dataclasses import dataclass, fields as dataclass_fields
 
 from pydantic import ValidationError
 
-from extraction.layout_a import LayoutAResult
+from extraction.models import ExtractionResult
 from extraction.schema import InspectionCertificate
 
 
@@ -20,7 +20,7 @@ class ValidationOutcome:
     errors: tuple[str, ...]
 
 
-def validate_extraction(result: LayoutAResult) -> ValidationOutcome:
+def validate_extraction(result: ExtractionResult) -> ValidationOutcome:
     """Validate one parser result against the schema.
 
     Field-level problems (wrong type, out of range, missing required

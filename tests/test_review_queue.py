@@ -11,7 +11,7 @@ def test_clean_layout_a_document_needs_no_review(sample_data_dir):
 
 
 def test_unparsed_layout_document_is_flagged_for_review(sample_data_dir):
-    item = evaluate_document(sample_data_dir / "MES-2026-4101.pdf")  # Layout B
+    item = evaluate_document(sample_data_dir / "MES-2026-4101.pdf")  # Layout B: no parser
     assert item.layout == "B"
     assert item.needs_review is True
     assert all(value is None for value in item.values.values())
@@ -20,14 +20,35 @@ def test_unparsed_layout_document_is_flagged_for_review(sample_data_dir):
     assert any("low-confidence" in r for r in item.reasons)
 
 
+def test_missing_capacity_layout_c_document_is_flagged_for_the_right_reason(sample_data_dir):
+    """Once Layout C has a parser, a missing-capacity document must still
+    land in the review queue -- but now specifically because capacity_lbs
+    is low-confidence, not because nothing was extracted at all."""
+    item = evaluate_document(sample_data_dir / "MES-2026-4102.pdf")  # Layout C, capacity omitted
+    assert item.layout == "C"
+    assert item.needs_review is True
+    assert item.values["capacity_lbs"] is None
+    assert item.values["cert_no"] is not None  # everything else did extract
+    assert item.reasons == ("low-confidence/missing fields: capacity_lbs",)
+
+
+def test_fully_extracted_layout_c_document_needs_no_review(sample_data_dir):
+    item = evaluate_document(sample_data_dir / "MES-2026-4105.pdf")  # Layout C, capacity present
+    assert item.layout == "C"
+    assert item.needs_review is False
+    assert item.reasons == ()
+
+
 def test_full_corpus_queue_matches_expected_counts(sample_data_dir):
     items = build_queue(sample_data_dir)
     clean = [i for i in items if not i.needs_review]
     review = [i for i in items if i.needs_review]
 
     assert len(items) == 36
-    assert len(clean) == 12  # the 12 Layout A documents
-    assert len(review) == 24  # Layout B + C: no parser yet
+    # clean: 12 Layout A + 8 Layout C (the ones with capacity present)
+    assert len(clean) == 20
+    # review: 12 Layout B (no parser) + 4 Layout C (capacity missing)
+    assert len(review) == 16
 
 
 def test_nothing_in_the_clean_set_has_a_missing_field():

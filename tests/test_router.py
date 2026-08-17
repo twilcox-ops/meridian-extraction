@@ -17,7 +17,18 @@ Invoice Total:    $1,766.82
 """
 
 TEXT_B = "Conveyance Inspection Record - retain for jurisdiction audit\nUnit: B75-5\n"
-TEXT_C = "The conveyance identified below was examined on 04/02/2026 by D. Whitfield\n"
+
+TEXT_C = """
+The conveyance identified below was examined on 04/02/2026 by D. Whitfield, acting as an
+authorized inspector for Meridian Elevator Services. This document is issued under certificate
+reference MES-2026-4102 and supersedes any prior record for this unit.
+Premises: Harborview Tower Equipment No.: E11-2
+Street: 1100 Beacon St Classification: Freight
+Municipality: Portland, OR Rated Load: pounds
+Postal: 97205 Outcome: FAIL
+Charges for this examination total $1,001.53, payable net 30. Re-examination shall occur no
+later than 04/02/2027.
+"""
 
 
 def test_layout_a_routes_to_its_parser_and_produces_a_result():
@@ -29,6 +40,8 @@ def test_layout_a_routes_to_its_parser_and_produces_a_result():
 
 
 def test_layout_b_classified_correctly_but_has_no_parser_yet():
+    """Deliberate scope boundary, not a bug: no stage in the project ever
+    assigns Layout B a parser (see README)."""
     routed = route(TEXT_B)
     assert routed.layout == "B"
     assert routed.result is None
@@ -36,11 +49,13 @@ def test_layout_b_classified_correctly_but_has_no_parser_yet():
     assert "no parser" in routed.note
 
 
-def test_layout_c_classified_correctly_but_has_no_parser_yet():
+def test_layout_c_routes_to_its_parser_and_produces_a_result():
     routed = route(TEXT_C)
     assert routed.layout == "C"
-    assert routed.result is None
-    assert routed.misrouted
+    assert routed.result is not None
+    assert routed.result.cert_no == "MES-2026-4102"
+    assert routed.result.capacity_lbs is None  # this document omits capacity
+    assert not routed.misrouted
 
 
 def test_unrecognized_text_is_never_routed_anywhere():
