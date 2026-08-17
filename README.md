@@ -1,4 +1,4 @@
-# Project 2 — Document Extraction (Stage 1–2: Layout A extraction + routing)
+# Project 2 — Document Extraction (Stage 1–3: extraction, routing, validation)
 
 A scaffold for the project described in
 [`PROJECT-2-document-extraction.md`](../meridian-portfolio/PROJECT-2-document-extraction.md)
@@ -33,8 +33,27 @@ real users, no real inspection records.
   document's detected layout next to ground truth and calls out any
   misrouted document by name in its own section.
 
-Schema validation, confidence scoring, the review queue, and the LLM
-fallback are Stages 3–5, not built yet.
+**Stage 3 — Pydantic schema validation.**
+- `InspectionCertificate` (`src/extraction/schema.py`) is the Pydantic
+  model every extracted document must satisfy: types (a real `date`, not a
+  date-shaped string; `result` restricted to the three known enum values),
+  ranges (`invoice_total` and `capacity_lbs` must be positive,
+  `defect_count` can't be negative), and two cross-field rules —
+  `next_due` must be later than `inspection_date`, and a `FAIL` result
+  with zero defects listed is rejected as contradictory.
+- `capacity_lbs` is the one field allowed to be `None` — a few Layout C
+  documents omit it entirely, and that's a legitimate "missing," not an
+  invalid document. Every other field being `None` (a parser miss) fails
+  validation rather than passing a hole in the data downstream.
+- `validate.py` wraps model construction so a validation failure is a
+  reported outcome (`ValidationOutcome.valid`, `.errors`), not an
+  exception that stops the run.
+- A validation report (`src/extraction/validation_report.py`) routes and
+  validates every document, prints per-document status, and lists any
+  flagged document's exact errors in its own section.
+
+Confidence scoring, the review queue, and the LLM fallback are Stages 4–5,
+not built yet.
 
 ## Results
 
@@ -65,6 +84,24 @@ B and C documents route correctly but carry `result=None` since no parser
 exists for them yet — routing accuracy is not the same claim as extraction
 accuracy.
 
+Stage 3 — schema validation, all 36 documents:
+
+```
+Valid: 12  Invalid: 0  Skipped: 24
+No documents flagged by schema validation.
+```
+
+All 12 real Layout A extractions pass validation cleanly (measured by
+`tests/test_validation_corpus.py`) — the sample corpus has no planted
+contradictions. The four required rules are proven against mutated copies
+of a real extraction in `tests/test_schema.py`, e.g.:
+
+```
+FAIL + 0 defects        -> False, "result is FAIL but defect_count is 0 -- contradictory..."
+next_due == inspection_date -> False, "next_due (2026-01-13) must be later than inspection_date (2026-01-13)"
+negative invoice_total  -> False, "Input should be greater than 0"
+```
+
 ## Setup
 
 ```powershell
@@ -81,9 +118,13 @@ python -m venv .venv
 # Stage 2: layout classification + routing report, all 36 documents
 .venv\Scripts\route-documents
 
-# either can point at a different corpus with the same GROUND_TRUTH.csv shape
+# Stage 3: schema validation report, all 36 documents
+.venv\Scripts\validate-documents
+
+# any of these can point at a different corpus with the same GROUND_TRUTH.csv shape
 .venv\Scripts\python -m extraction.cli path\to\other\sample-data
 .venv\Scripts\python -m extraction.routing_report path\to\other\sample-data
+.venv\Scripts\python -m extraction.validation_report path\to\other\sample-data
 
 # tests
 .venv\Scripts\pytest -q
@@ -100,6 +141,9 @@ src/extraction/
   layout_detect.py  # marker-based classify_layout(text) -> A/B/C/unknown/ambiguous
   router.py         # route(text) -> classification + parser result (or explicit "no parser yet")
   routing_report.py # entry point: route-documents
+  schema.py          # InspectionCertificate Pydantic model: types, ranges, cross-field rules
+  validate.py         # validate_extraction(result) -> ValidationOutcome, never raises
+  validation_report.py # entry point: validate-documents
 tests/
   test_layout_a.py         # unit tests against synthetic label/value text
   test_determinism.py      # same PDF in twice -> identical result out
@@ -107,6 +151,9 @@ tests/
   test_layout_detect.py    # unit tests: ok/unknown/ambiguous classification
   test_router.py           # unit tests: routing + "no parser yet" for B/C
   test_routing_accuracy.py # end-to-end: 100% routing accuracy on all 36 real documents
+  test_schema.py            # unit tests: every type/range/cross-field rule, both ways
+  test_validate.py          # unit tests: validate_extraction wrapping + error surfacing
+  test_validation_corpus.py # end-to-end: all 12 real Layout A extractions pass validation
 sample-data/inspection-certs/   # 36 PDFs + GROUND_TRUTH.csv (copied in so
                                  # this repo is self-contained; source of
                                  # truth is meridian-portfolio/sample-data)
@@ -127,3 +174,7 @@ sample-data/inspection-certs/   # 36 PDFs + GROUND_TRUTH.csv (copied in so
   review-queue trigger without re-deriving what counts as suspicious.
 - `_PARSERS` in `router.py` is the only place that needs to change when
   Layout B/C get parsers — routing, classification, and reporting don't.
+- `ValidationOutcome` from `validate.py` is meant to be Stage 4's input:
+  `valid=False` (schema rejection) and `routed.misrouted=True` (Stage 2)
+  are both "send to review queue" signals, alongside confidence, which
+  Stage 4 still needs to add.
