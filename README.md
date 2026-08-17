@@ -215,10 +215,10 @@ Documents needing the LLM fallback (a field was missing): 4
 Field accuracy WITHOUT fallback (deterministic parser only): 100.0%
 Field accuracy WITH fallback:                                100.0%
 
-Total cost this run: $0.01706
-Cost per document needing the fallback: $0.00426
-Cost per document across all of Layout C: $0.00142
-Average latency per fresh API call: 3.10s
+Total cost this run: $0.01681
+Cost per document needing the fallback: $0.00420
+Cost per document across all of Layout C: $0.00140
+Average latency per fresh API call: 3.17s
 ```
 
 **The finding — as the project doc says to expect, whatever it turns out
@@ -232,7 +232,11 @@ rather than inventing a plausible weight. That's the actual result: the
 LLM path is proven safe (it never fabricated a value) and proven
 unnecessary on this corpus (nothing was left to extract) — both facts
 measured, not assumed. Rerunning the same command afterward costs **$0.00**
-— every one of those 4 answers is now cached.
+— every one of those 4 answers is now cached. (Reproduced twice on two
+separate live runs with two different API keys, a few cents apart each
+time — the accuracy result and the "never fabricates" behavior held
+identically both times; only the exact cost/latency figures moved with
+normal API variance.)
 
 ## Setup
 
