@@ -10,11 +10,13 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+ui = ["streamlit>=1.30"]
 
 [project.scripts]
 extract-layout-a = "extraction.cli:main"
 route-documents = "extraction.routing_report:main"
 validate-documents = "extraction.validation_report:main"
+build-review-queue = "extraction.review_queue:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

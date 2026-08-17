@@ -1,4 +1,4 @@
-# Project 2 — Document Extraction (Stage 1–3: extraction, routing, validation)
+# Project 2 — Document Extraction (Stage 1–4: extraction, routing, validation, review queue)
 
 A scaffold for the project described in
 [`PROJECT-2-document-extraction.md`](../meridian-portfolio/PROJECT-2-document-extraction.md)
@@ -52,8 +52,28 @@ real users, no real inspection records.
   validates every document, prints per-document status, and lists any
   flagged document's exact errors in its own section.
 
-Confidence scoring, the review queue, and the LLM fallback are Stages 4–5,
-not built yet.
+**Stage 4 — confidence scoring and a review queue.**
+- `confidence.py`: for deterministic regex extraction, confidence is
+  honestly binary — 1.0 for a field the parser found, 0.0 for one it
+  didn't. There's no gradient to hedge with; a real fractional confidence
+  arrives with Stage 5's LLM fallback.
+- `review_queue.py`: a document is flagged for review if it was misrouted
+  (Stage 2), any field is below the confidence threshold — including any
+  field that's simply missing — or the extraction fails schema validation
+  (Stage 3). Everything not flagged is "clean." `build-review-queue`
+  prints the queue and the reasons behind every flagged document.
+- `audit_log.py`: an append-only JSONL log (`var/audit_log.jsonl` by
+  default, overridable via `EXTRACTION_AUDIT_LOG_PATH`). Every review
+  decision — approve or correct — is one line: reviewer, timestamp,
+  document, field, old value, new value. Corrections add lines; nothing is
+  ever overwritten.
+- `app/review_app.py`: a small Streamlit UI. Pick a queued document from
+  the sidebar, see its PDF page rendered next to its extracted (or blank,
+  if there's no parser yet) field values, edit what needs correcting, and
+  submit. Leaving a field blank and submitting logs an explicit "approved
+  as missing," not a fabricated empty value.
+
+The LLM fallback is Stage 5, not built yet.
 
 ## Results
 
@@ -102,11 +122,26 @@ next_due == inspection_date -> False, "next_due (2026-01-13) must be later than 
 negative invoice_total  -> False, "Input should be greater than 0"
 ```
 
+Stage 4 — review queue, all 36 documents:
+
+```
+36 documents evaluated: 12 clean, 24 need review
+```
+
+The 12 clean documents are the 12 Layout A extractions: fully populated,
+fully validated, every field at full confidence. All 24 Layout B/C
+documents land in the queue — no parser exists for them yet, so every
+field is reported missing rather than guessed. Measured by
+`tests/test_review_queue.py`.
+
 ## Setup
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\pip install -e ".[dev]"
+
+# to also run the Streamlit review UI:
+.venv\Scripts\pip install -e ".[ui]"
 ```
 
 ## Run
@@ -121,12 +156,19 @@ python -m venv .venv
 # Stage 3: schema validation report, all 36 documents
 .venv\Scripts\validate-documents
 
-# any of these can point at a different corpus with the same GROUND_TRUTH.csv shape
+# Stage 4: review queue report (who needs review and why)
+.venv\Scripts\build-review-queue
+
+# Stage 4: the review UI itself (requires the "ui" extra)
+.venv\Scripts\streamlit run app\review_app.py
+
+# any report command can point at a different corpus with the same GROUND_TRUTH.csv shape
 .venv\Scripts\python -m extraction.cli path\to\other\sample-data
 .venv\Scripts\python -m extraction.routing_report path\to\other\sample-data
 .venv\Scripts\python -m extraction.validation_report path\to\other\sample-data
+.venv\Scripts\python -m extraction.review_queue path\to\other\sample-data
 
-# tests
+# tests (Streamlit UI tests are skipped automatically if the "ui" extra isn't installed)
 .venv\Scripts\pytest -q
 ```
 
@@ -144,6 +186,11 @@ src/extraction/
   schema.py          # InspectionCertificate Pydantic model: types, ranges, cross-field rules
   validate.py         # validate_extraction(result) -> ValidationOutcome, never raises
   validation_report.py # entry point: validate-documents
+  confidence.py        # field_confidences(result) -> per-field 0.0/1.0
+  audit_log.py          # append-only JSONL log of review decisions
+  review_queue.py        # combines routing + confidence + validation -> QueueItem list; entry point: build-review-queue
+app/
+  review_app.py          # Streamlit review UI: streamlit run app/review_app.py
 tests/
   test_layout_a.py         # unit tests against synthetic label/value text
   test_determinism.py      # same PDF in twice -> identical result out
@@ -154,9 +201,14 @@ tests/
   test_schema.py            # unit tests: every type/range/cross-field rule, both ways
   test_validate.py          # unit tests: validate_extraction wrapping + error surfacing
   test_validation_corpus.py # end-to-end: all 12 real Layout A extractions pass validation
+  test_confidence.py         # unit tests: binary per-field confidence
+  test_audit_log.py           # unit tests: append/read, approve vs correct, per-file filtering
+  test_review_queue.py         # unit tests + end-to-end: 12 clean / 24 review on the real corpus
+  test_review_app.py            # Streamlit AppTest: loads, lists queue, submits, writes audit log
 sample-data/inspection-certs/   # 36 PDFs + GROUND_TRUTH.csv (copied in so
                                  # this repo is self-contained; source of
                                  # truth is meridian-portfolio/sample-data)
+var/                             # gitignored: audit_log.jsonl lives here once the UI is used
 ```
 
 ## Design notes for later stages
@@ -174,7 +226,13 @@ sample-data/inspection-certs/   # 36 PDFs + GROUND_TRUTH.csv (copied in so
   review-queue trigger without re-deriving what counts as suspicious.
 - `_PARSERS` in `router.py` is the only place that needs to change when
   Layout B/C get parsers — routing, classification, and reporting don't.
-- `ValidationOutcome` from `validate.py` is meant to be Stage 4's input:
-  `valid=False` (schema rejection) and `routed.misrouted=True` (Stage 2)
-  are both "send to review queue" signals, alongside confidence, which
-  Stage 4 still needs to add.
+- `ValidationOutcome.valid`, `routed.misrouted`, and per-field confidence
+  are the three inputs `review_queue.evaluate_document` combines into one
+  `needs_review` decision — Stage 5's LLM fallback only needs to change
+  what `field_confidences` returns (fractional instead of binary), not
+  how the review queue consumes it.
+- `record_review` logs every field the reviewer saw, not just the ones
+  they changed — a blank field left blank still gets an `approve` entry
+  (`old_value=None, new_value=None`), which is what makes "this document
+  was reviewed and nothing was fabricated" independently verifiable from
+  the log later.
