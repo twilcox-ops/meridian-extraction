@@ -289,6 +289,28 @@ python -m venv .venv
 .venv\Scripts\pip install -e ".[llm]"
 ```
 
+**Windows note:** if `python` (or `py`) isn't recognized, this usually means
+Python was installed via the Microsoft Store / MSIX package rather than the
+official python.org installer — MSIX installs don't always land on `PATH`.
+Find the real interpreter path with:
+
+```powershell
+where.exe python
+```
+
+If that comes back empty or points at the `WindowsApps` app-execution alias
+stub instead of a real install, look under
+`%LOCALAPPDATA%\Microsoft\WindowsApps\` or wherever your Python installer
+placed it, then call `python -m venv .venv` using the full path instead of
+the bare command, e.g.:
+
+```powershell
+& "$env:LOCALAPPDATA\Microsoft\WindowsApps\python.exe" -m venv .venv
+```
+
+Once the venv exists, everything else in this README (`.venv\Scripts\...`)
+works exactly the same regardless of which `python` created it.
+
 `.env` (git-ignored) must contain:
 
 ```
