@@ -1,10 +1,48 @@
 # Project 2 — Document Extraction (Stage 1–5, complete)
 
-A scaffold for the project described in
+Elevator inspection certificates arrive as PDFs in three different layouts,
+and a naive parser either breaks on the layout it wasn't built for or —
+worse — silently returns a wrong value that nobody catches. This project
+turns that corpus into structured data you can actually trust: extract
+deterministically wherever a regex will do (cheaper, faster, and far more
+debuggable than a model call), validate every field against real business
+rules, route anything uncertain to a human review queue instead of
+guessing, and bring in an LLM only for the one gap the deterministic
+parsers can't close — with the accuracy, cost, and latency of that LLM
+path measured, not assumed.
+
+Built against the synthetic 36-document, 3-layout corpus described in
 [`PROJECT-2-document-extraction.md`](../meridian-portfolio/PROJECT-2-document-extraction.md)
 in the sibling `meridian-portfolio` repo. Personal project built for skill
-development against synthetic sample data — no production deployment, no
-real users, no real inspection records.
+development — no production deployment, no real users, no real inspection
+records.
+
+```mermaid
+flowchart TD
+    PDF["PDF file"] --> Extract["pdf_io.extract_text<br/>(pdfplumber)"]
+    Extract --> Classify["layout_detect.classify_layout<br/>(one marker per layout)"]
+    Classify -->|ok| Router["router.route"]
+    Classify -->|"unknown / ambiguous"| Queue
+
+    Router -->|Layout A| ParserA["layout_a.parse_layout_a"]
+    Router -->|Layout C| ParserC["layout_c.parse_layout_c"]
+    Router -->|"Layout B<br/>(no parser, by design)"| Queue["Review queue<br/>(needs_review)"]
+
+    ParserA --> Result["ExtractionResult"]
+    ParserC --> Result
+    Result -->|"Layout C only,<br/>missing fields only"| LLM["llm_fallback.py<br/>Claude Opus 5, structured output"]
+    LLM <--> Cache[("var/llm_cache.jsonl<br/>keyed by model + fields + text")]
+    LLM --> Result
+
+    Result --> Validate["schema.py<br/>Pydantic: types, ranges,<br/>cross-field rules"]
+    Validate --> Confidence["confidence.py<br/>per-field 0.0 / 1.0"]
+    Confidence --> Decision{"needs review?"}
+    Decision -->|no| Clean["Clean output"]
+    Decision -->|"yes: misrouted,<br/>low confidence, or invalid"| Queue
+
+    Queue --> UI["app/review_app.py<br/>Streamlit: PDF page + fields"]
+    UI -->|"approve / correct"| Audit[("var/audit_log.jsonl<br/>who, what, when, old, new")]
+```
 
 **A deliberate scope boundary: Layout B has no parser, on purpose.** None
 of the project's 5 named stages ever assign Layout B one — Stage 1 scopes
@@ -374,3 +412,55 @@ var/                             # gitignored: audit_log.jsonl and llm_cache.jso
   parser, once fixed, is both cheaper and proven at 100% on the real
   corpus. What that argument predicted is exactly what the measurement
   showed: the fallback made 4 real calls and changed 0 field values.
+
+## What I'd do differently
+
+- **Build Layout B too, or cut the "3-layout" framing.** Leaving it
+  unparsed is defensible — none of the project's 5 stages ever assign it a
+  parser — but it means the per-layout accuracy report only ever speaks
+  for 2 of the 3 layouts, and the résumé line "36-document, 3-layout
+  corpus" is doing more work than the pipeline actually does. I'd either
+  spend the small amount of extra time to give B a deterministic parser
+  (it's table-style, not fundamentally harder than A or C) or be more
+  explicit up front, before building anything, that the third layout is
+  scope-boundaried rather than discovering that gap in an after-the-fact
+  audit.
+- **Test the Layout C parser against more than a handful of samples before
+  calling it done.** The wrap-point bug — a regex that assumed the preamble
+  sentence always breaks after the same word — only showed up because 2 of
+  the 12 real documents happened to wrap differently, and I only caught it
+  by running the parser against the *entire* real corpus and reading every
+  mismatch, not by eyeballing 3 sample PDFs and trusting the pattern. That
+  should be the default habit for every new parser, not a debugging step
+  reached for after something breaks.
+- **Stress-test the LLM fallback on a field it actually has to extract.**
+  Every real missing field in this corpus is `capacity_lbs`, and the
+  correct answer for all 4 cases is "confirm it's genuinely absent." That
+  proves the "never fabricate" property, which matters most — but it never
+  exercises the case where the model has to find a value that's really
+  there, just phrased awkwardly. I'd manufacture at least one synthetic
+  document where a different field is deterministically unparseable but
+  recoverable from context, so the fallback's *positive* case is measured
+  too, not just its refusal case.
+- **Give the LLM cache a real invalidation story.** `PROMPT_VERSION` is a
+  manual bump — if I change the prompt and forget to bump it, stale
+  answers get served silently. Fine for a 12-document corpus checked by
+  hand; not fine at any real scale. A content hash of the prompt template
+  itself (instead of a hand-maintained version string) would make that
+  class of bug structurally impossible instead of relying on discipline.
+- **Decide up front whether the LLM fallback feeds the clean output, not
+  after the fact.** Stage 5 measures the fallback in its own report but
+  never wires its answers back into `confidence.py` or the review queue —
+  a deliberate choice to keep the "with vs. without" comparison honest, but
+  it means a document the LLM successfully resolved still shows up in the
+  review queue today. That's the right call for *measuring* Stage 5, but
+  if this were headed to real usage I'd have designed the confidence model
+  to accept a fractional, LLM-sourced score from the start, rather than
+  treating "wire it in" as a followup.
+- **Handle the `.env` file more carefully from the first attempt.** Fixing
+  its format took two tries because an early command printed the raw API
+  key into the conversation before I'd built a redact-by-default habit for
+  anything that touches a secrets file. The fix itself (structural checks —
+  key name, value length, a change-hash — never the value) is the right
+  pattern; I'd just want it to be the *first* instinct next time a file
+  might contain a credential, not the second.
