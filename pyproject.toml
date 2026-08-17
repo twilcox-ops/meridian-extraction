@@ -12,6 +12,7 @@ dev = ["pytest>=8.0"]
 
 [project.scripts]
 extract-layout-a = "extraction.cli:main"
+route-documents = "extraction.routing_report:main"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
