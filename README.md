@@ -276,6 +276,16 @@ time — the accuracy result and the "never fabricates" behavior held
 identically both times; only the exact cost/latency figures moved with
 normal API variance.)
 
+## Résumé bullet
+
+> Built a PDF extraction pipeline over a 36-document, 3-layout corpus,
+> achieving 100% field-level accuracy against a ground-truth key, with
+> Pydantic schema validation, confidence thresholding, and a human review
+> queue for low-confidence extractions; added a targeted LLM fallback for
+> the hardest layout that held accuracy at 100% while proving the fallback
+> never fabricates a value on genuinely missing fields, at $0.0014 per
+> document across that layout.
+
 ## Setup
 
 ```powershell
